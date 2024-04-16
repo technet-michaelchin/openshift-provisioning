@@ -15,7 +15,7 @@
 
 ### Default Config
 
-```json
+```
 default = {
     kiali = {
       update_channel = "stable"
