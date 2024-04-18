@@ -10,41 +10,19 @@ resource "kubernetes_namespace" "minio_operator" {
 }
 
 resource "kubernetes_manifest" "minio_operator_group" {
-  manifest = {
-    apiVersion = "operators.coreos.com/v1"
-    kind       = "OperatorGroup"
-    metadata = {
-      name      = "minio-operator"
-      namespace = kubernetes_namespace.minio_operator.metadata[0].name
-    }
-    spec: {}
-  }
+  manifest = yamldecode(templatefile("${path.module}/manifests/minio/operator/operator-group.yml.tftpl", {
+    namespace = kubernetes_namespace.minio_operator.metadata[0].name
+  }))
 }
 
 resource "kubernetes_manifest" "minio_operator" {
-  depends_on = [ kubernetes_manifest.minio_operator_group ]
   # count = 0
-  manifest = {
-    apiVersion = "operators.coreos.com/v1alpha1"
-    kind       = "Subscription"
-    metadata = {
-      name      = "minio-operator"
-      namespace = kubernetes_namespace.minio_operator.metadata[0].name
-    }
-    spec: {
-      channel = var.operators.minio.update_channel
-      installPlanApproval = "Automatic"
-      name = "minio-operator"
-      source = "certified-operators"
-      sourceNamespace = "openshift-marketplace"
-      startingCSV = "minio-operator.v${var.operators.minio.version}"
-      config = {
-        nodeSelector = {
-          "node-role.kubernetes.io/infra": ""
-        }
-      }
-    }
-  }
+  depends_on = [ kubernetes_manifest.minio_operator_group ]
+  manifest = yamldecode(templatefile("${path.module}/manifests/minio/operator/subscription.yml.tftpl", {
+    namespace = kubernetes_namespace.minio_operator.metadata[0].name
+    channel = var.operators.minio.update_channel
+    version = var.operators.minio.version
+  }))
   provisioner "local-exec" {
     when = destroy
     command = <<EOT
@@ -55,26 +33,86 @@ resource "kubernetes_manifest" "minio_operator" {
 }
 
 resource "kubernetes_manifest" "minio_operator_console_route" {
-  manifest = {
-    apiVersion = "route.openshift.io/v1"
-    kind       = "Route"
-    metadata = {
-      name      = "minio-operator-console"
-      namespace = kubernetes_namespace.minio_operator.metadata[0].name
-    }
-    spec: {
-      host = "minio-operator-console.lab.technet.local"
-      port: {
-        targetPort = 9443
-      }
-      to: {
-        kind = "Service"
-        name = "console"
-      }
-      tls: {
-        termination = "passthrough"
-        insecureEdgeTerminationPolicy = "None"
-      }
+  manifest = yamldecode(templatefile("${path.module}/manifests/minio/operator/route.yml.tftpl", {
+    namespace = kubernetes_namespace.minio_operator.metadata[0].name
+    base_domain = var.base_domain
+  }))
+}
+
+resource "kubernetes_namespace" "tenants" {
+  for_each = {
+    for tenant in var.minio_tenants:
+    tenant.name => tenant 
+  }
+  metadata {
+    name = each.key
+    annotations = {
+      "openshift.io/sa.scc.mcs"                 = each.value.namespace.mcs 
+      "openshift.io/sa.scc.supplemental-groups" = each.value.namespace.supplemental_groups
+      "openshift.io/sa.scc.uid-range"           = each.value.namespace.uid_range
     }
   }
+}
+
+resource "kubernetes_secret" "tenants_env" {
+  for_each = {
+    for tenant in var.minio_tenants:
+    tenant.name => tenant
+  }
+  metadata {
+    name = "minio-env-configuration"
+    namespace = kubernetes_namespace.tenants[each.key].metadata[0].name
+  }
+  data = {
+    "config.env" = <<EOF
+export MINIO_ROOT_USER="${each.value.root_user}"
+export MINIO_ROOT_PASSWORD="${each.value.root_password}"
+EOF
+  }
+}
+
+resource "kubernetes_secret" "tenants_users" {
+  for_each = {
+    for user in local.minio_users:
+    "${user.namespace}-${user.user_name}" => user
+  }
+  metadata {
+    name = each.value.user_name
+    namespace = kubernetes_namespace.tenants[each.value.namespace].metadata[0].name
+  }
+  data = {
+    "CONSOLE_ACCESS_KEY" = each.value.user_name
+    "CONSOLE_SECRET_KEY" = each.value.user_password
+  }
+}
+
+resource "kubernetes_manifest" "tenants" {
+  for_each = {
+    for tenant in var.minio_tenants:
+    tenant.name => tenant
+  }
+  manifest = yamldecode(templatefile("${path.module}/manifests/minio/tenant/tenant.yml.tftpl", {
+    namespace = kubernetes_namespace.tenants[each.key].metadata[0].name
+    fs_group = tonumber(split("/", each.value.namespace.uid_range)[0])
+    group = tonumber(split("/", each.value.namespace.uid_range)[0])
+    user = tonumber(split("/", each.value.namespace.uid_range)[0])
+    numberOfServers = each.value.numberOfServers
+    volumeSize = each.value.volumeSize
+    volumesPerServer = each.value.volumesPerServer
+    storageClass = each.value.storageClass
+    users = each.value.users
+  }))
+}
+
+resource "kubernetes_manifest" "tenants_route" {
+  depends_on = [ kubernetes_manifest.tenants ]
+  for_each = {
+    for tenant in var.minio_tenants:
+    tenant.name => tenant
+  }
+  manifest = yamldecode(templatefile("${path.module}/manifests/minio/tenant/route.yml.tftpl", {
+    namespace = kubernetes_namespace.tenants[each.key].metadata[0].name
+    base_domain = var.base_domain
+    tenant = each.key
+  }))
 }
