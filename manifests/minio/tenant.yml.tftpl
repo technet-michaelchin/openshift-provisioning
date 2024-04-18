@@ -65,7 +65,15 @@ spec:
       volumesPerServer: ${volumesPerServer}
   requestAutoCert: false
   serviceAccountName: minio-sa
+%{if length(users) > 0 ~}
   users:
 %{for user in users ~}
     - name: ${user.name}
 %{ endfor ~}
+%{ endif }
+%{if length(buckets) > 0 ~}
+  buckets:
+%{for bucket in buckets ~}
+  - name: ${bucket}
+%{ endfor ~}
+%{endif}

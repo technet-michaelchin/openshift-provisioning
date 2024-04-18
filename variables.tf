@@ -41,6 +41,10 @@ variable "operators" {
       update_channel = "stable"
       version = "5.0.13"
     }
+    loki = {
+      update_channel = "stable-5.9"
+      version = "5.9.0"
+    }
   }
   description = "Operators to install"
 }
@@ -63,5 +67,17 @@ variable "minio_tenants" {
     storageClass = string
     volumeSize = string
     volumesPerServer = number
+    buckets = list(string)
   }))
+}
+
+variable "logging" {
+  type = object({
+    s3 = object({
+      access_key_id = string
+      secret_access_key = string
+      bucketnames = string
+      endpoint = string
+    })
+  })
 }

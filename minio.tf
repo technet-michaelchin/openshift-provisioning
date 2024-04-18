@@ -10,7 +10,8 @@ resource "kubernetes_namespace" "minio_operator" {
 }
 
 resource "kubernetes_manifest" "minio_operator_group" {
-  manifest = yamldecode(templatefile("${path.module}/manifests/minio/operator/operator-group.yml.tftpl", {
+  manifest = yamldecode(templatefile("${path.module}/manifests/operator-group.yml.tftpl", {
+    name = "minio-operator-group"
     namespace = kubernetes_namespace.minio_operator.metadata[0].name
   }))
 }
@@ -18,10 +19,13 @@ resource "kubernetes_manifest" "minio_operator_group" {
 resource "kubernetes_manifest" "minio_operator" {
   # count = 0
   depends_on = [ kubernetes_manifest.minio_operator_group ]
-  manifest = yamldecode(templatefile("${path.module}/manifests/minio/operator/subscription.yml.tftpl", {
+  manifest = yamldecode(templatefile("${path.module}/manifests/subscription.yml.tftpl", {
     namespace = kubernetes_namespace.minio_operator.metadata[0].name
     channel = var.operators.minio.update_channel
     version = var.operators.minio.version
+    operator = "minio-operator"
+    source = "certified-operators"
+    source_namespace = "openshift-marketplace"
   }))
   provisioner "local-exec" {
     when = destroy
@@ -29,13 +33,19 @@ resource "kubernetes_manifest" "minio_operator" {
     CSV=$(oc get subscription.operators.coreos.com ${self.manifest.metadata.name} -n ${self.manifest.metadata.namespace} -o=jsonpath='{.status.currentCSV}')
     oc delete csv $CSV -n ${self.manifest.metadata.namespace}
     EOT
+    on_failure = continue
   }
 }
 
 resource "kubernetes_manifest" "minio_operator_console_route" {
-  manifest = yamldecode(templatefile("${path.module}/manifests/minio/operator/route.yml.tftpl", {
+  manifest = yamldecode(templatefile("${path.module}/manifests/route.yml.tftpl", {
+    name = "minio-operator-console"
     namespace = kubernetes_namespace.minio_operator.metadata[0].name
-    base_domain = var.base_domain
+    host = "minio-operator-console.${var.base_domain}"
+    target_port = 9443
+    service = "console"
+    termination = "passthrough"
+    insecure_edge_termination_policy = "Redirect"
   }))
 }
 
@@ -91,7 +101,7 @@ resource "kubernetes_manifest" "tenants" {
     for tenant in var.minio_tenants:
     tenant.name => tenant
   }
-  manifest = yamldecode(templatefile("${path.module}/manifests/minio/tenant/tenant.yml.tftpl", {
+  manifest = yamldecode(templatefile("${path.module}/manifests/minio/tenant.yml.tftpl", {
     namespace = kubernetes_namespace.tenants[each.key].metadata[0].name
     fs_group = tonumber(split("/", each.value.namespace.uid_range)[0])
     group = tonumber(split("/", each.value.namespace.uid_range)[0])
@@ -101,6 +111,7 @@ resource "kubernetes_manifest" "tenants" {
     volumesPerServer = each.value.volumesPerServer
     storageClass = each.value.storageClass
     users = each.value.users
+    buckets = each.value.buckets
   }))
 }
 
@@ -110,9 +121,30 @@ resource "kubernetes_manifest" "tenants_route" {
     for tenant in var.minio_tenants:
     tenant.name => tenant
   }
-  manifest = yamldecode(templatefile("${path.module}/manifests/minio/tenant/route.yml.tftpl", {
+  manifest = yamldecode(templatefile("${path.module}/manifests/route.yml.tftpl", {
+    name = "minio-${each.key}"
     namespace = kubernetes_namespace.tenants[each.key].metadata[0].name
-    base_domain = var.base_domain
-    tenant = each.key
+    host = "minio-${each.key}.apps.${var.base_domain}"
+    target_port = 9090
+    service = "minio-console"
+    termination = "edge"
+    insecure_edge_termination_policy = "Redirect"
+  }))
+}
+
+resource "kubernetes_manifest" "tenants_api_route" {
+  depends_on = [ kubernetes_manifest.tenants ]
+  for_each = {
+    for tenant in var.minio_tenants:
+    tenant.name => tenant
+  }
+  manifest = yamldecode(templatefile("${path.module}/manifests/route.yml.tftpl", {
+    name = "minio-${each.key}-api"
+    namespace = kubernetes_namespace.tenants[each.key].metadata[0].name
+    host = "minio-${each.key}-api.apps.${var.base_domain}"
+    target_port = 9000
+    service = "minio"
+    termination = "edge"
+    insecure_edge_termination_policy = "Redirect"
   }))
 }
