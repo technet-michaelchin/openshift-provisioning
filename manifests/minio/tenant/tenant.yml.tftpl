@@ -1,0 +1,71 @@
+apiVersion: minio.min.io/v2
+kind: Tenant
+metadata:
+  name: minio
+  namespace: ${namespace}
+spec:
+  certConfig:
+    commonName: "*.minio-hl.${namespace}.svc.cluster.local"
+    dnsNames:
+      - minio-ss-0-0.minio-hl.${namespace}.svc.cluster.local
+    organizationName:
+      - system:nodes
+  configuration:
+    name: minio-env-configuration
+  exposeServices:
+    console: true
+    minio: true
+  features:
+    enableSFTP: false
+  image: minio/minio:RELEASE.2024-03-05T04-48-44Z
+  imagePullPolicy: IfNotPresent
+  imagePullSecret: {}
+  mountPath: /export
+  podManagementPolicy: Parallel
+  pools:
+    - affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/infra
+                    operator: In
+                    values:
+                      - ""
+                  - key: v1.min.io/tenant
+                    operator: In
+                    values:
+                      - minio
+                  - key: v1.min.io/pool
+                    operator: In
+                    values:
+                      - ""
+              topologyKey: kubernetes.io/hostname
+      name: ss-0
+      resources: {}
+      securityContext:
+        fsGroup: ${fs_group}
+        fsGroupChangePolicy: Always
+        runAsGroup: ${group}
+        runAsNonRoot: true
+        runAsUser: ${user}
+      servers: ${numberOfServers}
+      volumeClaimTemplate:
+        apiVersion: v1
+        kind: persistentvolumeclaims
+        metadata:
+          creationTimestamp: null
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: ${volumeSize}
+          storageClassName: ${storageClass}
+      volumesPerServer: ${volumesPerServer}
+  requestAutoCert: false
+  serviceAccountName: minio-sa
+  users:
+%{for user in users ~}
+    - name: ${user.name}
+%{ endfor ~}

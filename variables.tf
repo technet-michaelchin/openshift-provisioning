@@ -1,3 +1,8 @@
+variable "base_domain" {
+  type = string
+  description = "Base domain for the OCP cluster"
+}
+
 variable "kubeconfig_path" {
   type = string
   default = "kubeconfig"
@@ -40,3 +45,23 @@ variable "operators" {
   description = "Operators to install"
 }
 
+variable "minio_tenants" {
+  type = list(object({
+    root_user = string
+    root_password = string
+    name = string
+    namespace = object({
+      mcs = string
+      supplemental_groups = string
+      uid_range = string
+    })
+    users = list(object({
+      name = string
+      password = string
+    }))
+    numberOfServers = number
+    storageClass = string
+    volumeSize = string
+    volumesPerServer = number
+  }))
+}
