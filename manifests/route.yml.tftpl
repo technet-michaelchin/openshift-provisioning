@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ${name}
+  namespace: ${namespace}
+spec:
+  host: ${host}
+  port:
+    targetPort: ${target_port}
+  to:
+    kind: Service
+    name: ${service}
+%{ if termination != "" && insecure_edge_termination_policy != "" }
+  tls:
+    termination: ${termination}
+    insecureEdgeTerminationPolicy: ${insecure_edge_termination_policy}
+%{ endif }
