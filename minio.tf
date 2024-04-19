@@ -22,10 +22,10 @@ resource "kubernetes_manifest" "minio_operator" {
   manifest = yamldecode(templatefile("${path.module}/manifests/subscription.yml.tftpl", {
     namespace = kubernetes_namespace.minio_operator.metadata[0].name
     channel = var.operators.minio.update_channel
-    version = var.operators.minio.version
     operator = "minio-operator"
     source = "certified-operators"
     source_namespace = "openshift-marketplace"
+    starting_csv = "minio-operator.v${var.operators.minio.version}"
   }))
   provisioner "local-exec" {
     when = destroy

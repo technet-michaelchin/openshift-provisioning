@@ -4,10 +4,10 @@ resource "kubernetes_manifest" "loki_operator" {
   manifest = yamldecode(templatefile("${path.module}/manifests/subscription.yml.tftpl", {
     namespace = "openshift-operators-redhat"
     channel = var.operators.loki.update_channel
-    version = var.operators.loki.version
     operator = "loki-operator"
     source = "redhat-operators"
     source_namespace = "openshift-marketplace"
+    starting_csv = "loki-operator.v${var.operators.loki.version}"
   }))
   provisioner "local-exec" {
     when = destroy
@@ -46,10 +46,10 @@ resource "kubernetes_manifest" "logging_operator" {
   manifest = yamldecode(templatefile("${path.module}/manifests/subscription.yml.tftpl", {
     namespace = "openshift-logging"
     channel = var.operators.logging.update_channel
-    version = var.operators.logging.version
     operator = "cluster-logging"
     source = "redhat-operators"
     source_namespace = "openshift-marketplace"
+    starting_csv = "cluster-logging.v${var.operators.logging.version}"
   }))
   provisioner "local-exec" {
     when = destroy

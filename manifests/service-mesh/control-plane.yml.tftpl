@@ -1,0 +1,33 @@
+apiVersion: maistra.io/v2
+kind: ServiceMeshControlPlane
+metadata:
+  name: basic
+  namespace: ${namespace}
+spec:
+  runtime:
+    defaults:
+      pod:
+        nodeSelector:
+          "node-role.kubernetes.io/infra": ""
+        tolerations:
+          - effect: "NoSchedule"
+            key: "node-role.kubernetes.io/infra"
+            value: "reserved"
+          - effect: "NoExecute"
+            key: "node-role.kubernetes.io/infra"
+            value: "reserved"
+  version: "v2.5"
+  tracing:
+    type: Jaeger
+    sampling: 10000
+  addons:
+    jaeger:
+      name: "jaeger"
+      install:
+        storage:
+          type: "memory"
+    kiali:
+      enabled: true
+      name: "kiali"
+    grafana:
+      enabled: true
