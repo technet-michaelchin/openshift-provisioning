@@ -39,9 +39,13 @@ variable "operators" {
     }
     minio = {
       update_channel = "stable"
-      version = "5.0.13"
+      version = "5.0.14"
     }
     loki = {
+      update_channel = "stable-5.9"
+      version = "5.9.0"
+    }
+    logging = {
       update_channel = "stable-5.9"
       version = "5.9.0"
     }

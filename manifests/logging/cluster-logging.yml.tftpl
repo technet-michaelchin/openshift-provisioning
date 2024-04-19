@@ -1,0 +1,23 @@
+apiVersion: logging.openshift.io/v1
+kind: ClusterLogging
+metadata:
+  name: instance
+  namespace: ${namespace}
+spec:
+  logStore:
+    type: lokistack
+    lokistack:
+      name: logging-loki
+    retentionPolicy:
+      application:
+        maxAge: 1d
+      infra:
+        maxAge: 7d
+      audit:
+        maxAge: 7d
+  visualization:
+    type: ocp-console
+  collection:
+    type: vector
+    nodeSelector:
+      node-role.kubernetes.io/infra: ""
