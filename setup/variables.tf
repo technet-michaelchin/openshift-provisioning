@@ -15,44 +15,6 @@ variable "kubeconfig_context" {
   description = "Kubeconfig context to use"
 }
 
-variable "operators" {
-  type = map(object({
-    update_channel = string
-    version = string 
-  }))
-  default = {
-    kiali = {
-      update_channel = "stable"
-      version = "1.73.4"
-    }
-    elasticsearch = {
-      update_channel = "stable-5.8"
-      version = "5.8.5"
-    }
-    distributed_tracing = {
-      update_channel = "stable"
-      version = "1.53.0-4"
-    }
-    service_mesh = {
-      update_channel = "stable"
-      version = "2.5.0"
-    }
-    minio = {
-      update_channel = "stable"
-      version = "5.0.14"
-    }
-    loki = {
-      update_channel = "stable-5.9"
-      version = "5.9.0"
-    }
-    logging = {
-      update_channel = "stable-5.9"
-      version = "5.9.0"
-    }
-  }
-  description = "Operators to install"
-}
-
 variable "minio_tenants" {
   type = list(object({
     root_user = string

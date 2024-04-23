@@ -1,46 +1,7 @@
-resource "kubernetes_namespace" "minio_operator" {
-  metadata {
-    name = "minio-operator"
-    annotations = {
-      "openshift.io/sa.scc.mcs"                 = "s0:c26,c25" 
-      "openshift.io/sa.scc.supplemental-groups" = "1000700000/10000" 
-      "openshift.io/sa.scc.uid-range"           = "1000700000/10000" 
-    }
-  }
-}
-
-resource "kubernetes_manifest" "minio_operator_group" {
-  manifest = yamldecode(templatefile("${path.module}/manifests/operator-group.yml.tftpl", {
-    name = "minio-operator-group"
-    namespace = kubernetes_namespace.minio_operator.metadata[0].name
-  }))
-}
-
-resource "kubernetes_manifest" "minio_operator" {
-  # count = 0
-  depends_on = [ kubernetes_manifest.minio_operator_group ]
-  manifest = yamldecode(templatefile("${path.module}/manifests/subscription.yml.tftpl", {
-    namespace = kubernetes_namespace.minio_operator.metadata[0].name
-    channel = var.operators.minio.update_channel
-    operator = "minio-operator"
-    source = "certified-operators"
-    source_namespace = "openshift-marketplace"
-    starting_csv = "minio-operator.v${var.operators.minio.version}"
-  }))
-  provisioner "local-exec" {
-    when = destroy
-    command = <<EOT
-    CSV=$(oc get subscription.operators.coreos.com ${self.manifest.metadata.name} -n ${self.manifest.metadata.namespace} -o=jsonpath='{.status.currentCSV}')
-    oc delete csv $CSV -n ${self.manifest.metadata.namespace}
-    EOT
-    on_failure = continue
-  }
-}
-
 resource "kubernetes_manifest" "minio_operator_console_route" {
   manifest = yamldecode(templatefile("${path.module}/manifests/route.yml.tftpl", {
     name = "minio-operator-console"
-    namespace = kubernetes_namespace.minio_operator.metadata[0].name
+    namespace = "minio-operator"
     host = "minio-operator-console.${var.base_domain}"
     target_port = 9443
     service = "console"
